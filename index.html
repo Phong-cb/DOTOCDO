@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vật lí 10 – Bài 6: Thực hành đo tốc độ của vật chuyển động</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .led-font { font-family: 'Share Tech Mono', ui-monospace, monospace; }
+  .led-screen {
+    background: radial-gradient(ellipse at center, #07140d 0%, #020805 100%);
+    box-shadow: inset 0 0 25px rgba(0,0,0,.9), 0 0 0 3px #1e293b, 0 0 0 5px #0f172a;
+  }
+  .led-ghost { color: rgba(16,185,129,.09); }
+  .led-on { color: #34d399; text-shadow: 0 0 6px rgba(52,211,153,.9), 0 0 18px rgba(16,185,129,.55); }
+  .ov { text-decoration: overline; text-decoration-thickness: 1px; }
+  .hw-btn { transition: transform .08s, box-shadow .08s, filter .15s; box-shadow: 0 5px 0 rgba(0,0,0,.55), 0 8px 14px rgba(0,0,0,.4); }
+  .hw-btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0,0,0,.55); }
+  .hw-btn:disabled { filter: grayscale(.8) brightness(.6); cursor: not-allowed; }
+  input[type=range] { accent-color: #6366f1; }
+  input[type=range]:disabled { opacity: .45; }
+  .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 8px; }
+  .toast-in { animation: toastIn .25s ease-out; }
+  @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen">
+
+<!-- ================= HEADER ================= -->
+<header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+  <div class="max-w-[1500px] mx-auto px-4 py-3 flex flex-wrap items-center gap-3 justify-between">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-11 h-11 rounded-xl bg-indigo-500/15 border border-indigo-400/30 grid place-items-center text-indigo-300 text-xl shrink-0">
+        <i class="fa-solid fa-gauge-high"></i>
+      </div>
+      <div class="min-w-0">
+        <h1 class="text-base sm:text-lg font-bold text-white leading-tight">Bài 6. Thực hành đo tốc độ của vật chuyển động</h1>
+        <p class="text-xs text-slate-400">Vật lí 10 · Bộ sách Kết nối tri thức với cuộc sống</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="inline-flex rounded-lg bg-slate-800 p-1 border border-slate-700" role="tablist" aria-label="Chọn chế độ đo">
+        <button id="hdrTabAB" class="px-3 py-1.5 rounded-md text-xs sm:text-sm font-semibold transition" onclick="setMode('AB')">
+          Bảng 6.1 · <span class="led-font">MODE A+B</span>
+        </button>
+        <button id="hdrTabA" class="px-3 py-1.5 rounded-md text-xs sm:text-sm font-semibold transition" onclick="setMode('A')">
+          Bảng 6.2 · <span class="led-font">MODE A</span>
+        </button>
+      </div>
+      <button onclick="openGuide()" class="px-3 py-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/40 text-amber-300 text-sm font-semibold transition">
+        <i class="fa-solid fa-book-open mr-1.5"></i>Hướng dẫn thí nghiệm
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1500px] mx-auto p-3 sm:p-4 grid grid-cols-1 xl:grid-cols-12 gap-4">
+
+  <!-- ================= LEFT: SIMULATION ================= -->
+  <section class="xl:col-span-7 space-y-4">
+
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden">
+      <div class="px-4 py-2.5 border-b border-slate-800 flex items-center justify-between text-sm">
+        <span class="font-semibold text-slate-100"><i class="fa-solid fa-flask text-emerald-400 mr-2"></i>Mô phỏng máng nghiêng &amp; cổng quang điện</span>
+        <span class="text-xs text-slate-500 hidden sm:inline">Tỉ lệ viên bi được phóng to để dễ quan sát</span>
+      </div>
+      <div id="canvasWrap" class="w-full">
+        <canvas id="sim" class="block w-full"></canvas>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+      <!-- Đồng hồ hiện số -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-slate-100"><i class="fa-regular fa-clock text-emerald-400 mr-2"></i>Đồng hồ đo thời gian hiện số</h2>
+          <div class="inline-flex rounded-md overflow-hidden border border-slate-700 text-xs led-font">
+            <button id="devModeAB" onclick="setMode('AB')" class="px-2.5 py-1">MODE A+B</button>
+            <button id="devModeA"  onclick="setMode('A')"  class="px-2.5 py-1">MODE A</button>
+          </div>
+        </div>
+        <div class="led-screen rounded-xl px-4 py-3 relative">
+          <div class="flex items-center justify-between text-[11px] led-font text-emerald-300/70 mb-1">
+            <span id="ledMode">MODE A+B</span>
+            <span id="ledState">SẴN SÀNG</span>
+          </div>
+          <div class="relative led-font text-right text-6xl sm:text-7xl leading-none select-none">
+            <div class="led-ghost" aria-hidden="true">8.888</div>
+            <div id="ledValue" class="led-on absolute inset-0">0.000</div>
+          </div>
+          <div class="text-right text-xs led-font text-emerald-300/70 mt-1">giây (s)</div>
+        </div>
+        <div class="mt-5 grid grid-cols-2 gap-3">
+          <button id="btnReset" onclick="resetAll()" class="hw-btn rounded-xl py-3 px-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm">
+            <i class="fa-solid fa-rotate-left mr-1.5"></i>RESET (Về 0)
+          </button>
+          <button id="btnRelease" onclick="release()" class="hw-btn rounded-xl py-3 px-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-sm leading-tight">
+            <i class="fa-solid fa-bolt mr-1.5"></i>Thả Bi<br><span class="text-[11px] font-semibold">(Ngắt Điện Nam Châm)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Thông số -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+        <h2 class="text-sm font-semibold text-slate-100 mb-3"><i class="fa-solid fa-sliders text-indigo-400 mr-2"></i>Bảng điều khiển thông số</h2>
+        <div class="space-y-4">
+          <div>
+            <div class="flex justify-between text-sm mb-1"><label for="rngS">Quãng đường <i>s</i> (E → F)</label><span id="valS" class="led-font text-emerald-300">0.400 m</span></div>
+            <input id="rngS" type="range" min="0.10" max="0.80" step="0.01" value="0.40" class="w-full">
+          </div>
+          <div>
+            <div class="flex justify-between text-sm mb-1"><label for="rngD">Đường kính viên bi <i>d</i></label><span id="valD" class="led-font text-emerald-300">0.0200 m</span></div>
+            <input id="rngD" type="range" min="0.010" max="0.030" step="0.001" value="0.020" class="w-full">
+          </div>
+          <div>
+            <div class="flex justify-between text-sm mb-1"><label for="rngA">Góc nghiêng <i>α</i></label><span id="valA" class="led-font text-emerald-300">15°</span></div>
+            <input id="rngA" type="range" min="5" max="30" step="1" value="15" class="w-full">
+          </div>
+          <div class="flex items-center justify-between text-sm pt-1">
+            <label for="selSpeed" class="text-slate-300"><i class="fa-solid fa-film mr-1.5 text-slate-400"></i>Tốc độ mô phỏng</label>
+            <select id="selSpeed" class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-sm">
+              <option value="1">1× (thực)</option>
+              <option value="0.5">0,5×</option>
+              <option value="0.25">0,25× (chậm)</option>
+            </select>
+          </div>
+          <p class="text-[11px] text-slate-500 leading-relaxed">Gia tốc <i>a</i> = <i>g</i> sin<i>α</i> (g = 9,8 m/s²). Mỗi lần thả, thời gian đo được cộng thêm sai số ngẫu nhiên ±0,5% … ±1%. Hãy giữ nguyên <i>s</i> và <i>d</i> trong 3 lần đo của cùng một bảng.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= RIGHT: DATA ================= -->
+  <section class="xl:col-span-5">
+    <div class="rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden">
+      <div class="p-2 bg-slate-950/60 border-b border-slate-800 grid grid-cols-2 gap-2">
+        <button id="tabAB" onclick="setMode('AB')" class="rounded-lg px-3 py-2 text-sm font-semibold transition">Bảng 6.1 · Tốc độ trung bình</button>
+        <button id="tabA"  onclick="setMode('A')"  class="rounded-lg px-3 py-2 text-sm font-semibold transition">Bảng 6.2 · Tốc độ tức thời</button>
+      </div>
+
+      <div class="p-4 space-y-4">
+        <div>
+          <h3 id="tblTitle" class="font-semibold text-white"></h3>
+          <p id="tblSub" class="text-xs text-slate-400 mt-0.5"></p>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button onclick="autoMeasure()" class="px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold transition"><i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>Đo Tự Động 3 Lần</button>
+          <button onclick="copyReport()" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition"><i class="fa-regular fa-copy mr-1.5"></i>Sao Chép Báo Cáo</button>
+          <button onclick="clearTable()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm font-semibold transition"><i class="fa-regular fa-trash-can mr-1.5"></i>Xóa số liệu</button>
+        </div>
+
+        <div class="overflow-x-auto scroll-thin rounded-xl border border-slate-800">
+          <table class="w-full text-sm text-center">
+            <thead class="bg-slate-800/70 text-slate-300 text-xs uppercase tracking-wide">
+              <tr id="tblHead"></tr>
+            </thead>
+            <tbody id="tblBody" class="divide-y divide-slate-800 led-font text-base"></tbody>
+          </table>
+        </div>
+
+        <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+          <input id="chkTheory" type="checkbox" class="accent-indigo-500"> Hiện giá trị lý thuyết để đối chiếu (theo thông số hiện tại)
+        </label>
+        <div id="theoryBox" class="hidden text-xs rounded-lg border border-amber-500/30 bg-amber-500/5 text-amber-200 p-3"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="text-center text-xs text-slate-600 pb-6 px-4">
+  Mô phỏng phục vụ học tập · Vật lí 10 – Kết nối tri thức với cuộc sống
+</footer>
+
+<!-- ================= MODAL ================= -->
+<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center p-3 bg-black/70" onclick="if(event.target===this)closeGuide()">
+  <div class="w-full max-w-2xl max-h-[90vh] overflow-y-auto scroll-thin rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl">
+    <div class="sticky top-0 bg-slate-900 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
+      <h2 class="font-bold text-white"><i class="fa-solid fa-book-open text-amber-400 mr-2"></i>Hướng dẫn thực hiện thí nghiệm</h2>
+      <button onclick="closeGuide()" class="w-8 h-8 rounded-lg hover:bg-slate-800 text-slate-400" aria-label="Đóng"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="px-5 pt-4">
+      <div class="inline-flex rounded-lg bg-slate-800 p-1 border border-slate-700 text-sm">
+        <button id="gTabAB" class="px-3 py-1.5 rounded-md font-semibold" onclick="guideTab('AB')">Bảng 6.1</button>
+        <button id="gTabA"  class="px-3 py-1.5 rounded-md font-semibold" onclick="guideTab('A')">Bảng 6.2</button>
+      </div>
+    </div>
+    <div id="guideBody" class="px-5 py-4 text-sm text-slate-300 space-y-3 leading-relaxed"></div>
+  </div>
+</div>
+
+<div id="toast" class="fixed left-1/2 bottom-6 -translate-x-1/2 z-[60] hidden px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-600 text-sm text-slate-100 shadow-xl max-w-[90vw] text-center"></div>
+
+<script>
+/* ============================================================
+   HẰNG SỐ VẬT LÍ
+   ============================================================ */
+const G = 9.8;          // m/s²
+const L = 1.2;          // chiều dài máng (m)
+const XE = 0.15;        // vị trí cổng E tính từ tâm viên bi lúc đặt ở nam châm (m)
+
+/* ============================================================
+   TRẠNG THÁI
+   ============================================================ */
+const st = {
+  mode: 'AB',            // 'AB' = Bảng 6.1 (MODE A+B), 'A' = Bảng 6.2 (MODE A)
+  s: 0.40, d: 0.020, alpha: 15,
+  speed: 1,
+  phase: 'ready',        // ready | running | done
+  simT: 0, ballX: 0,
+  run: null,             // thông tin lần thả hiện tại
+  measured: 0,           // số chỉ đồng hồ khi dừng
+  data: { AB: [], A: [] },
+  guide: 'AB'
+};
+
+/* ============================================================
+   MÔ HÌNH VẬT LÍ
+   ============================================================ */
+function timing(mode, s, d, alphaDeg) {
+  const a = G * Math.sin(alphaDeg * Math.PI / 180);
+  let t1, t2;
+  if (mode === 'AB') {                 // đồng hồ chạy khi bi qua E, dừng khi bi qua F
+    t1 = Math.sqrt(2 * XE / a);
+    t2 = Math.sqrt(2 * (XE + s) / a);
+  } else {                             // đồng hồ chạy suốt thời gian bi chắn tia ở E
+    t1 = Math.sqrt(2 * (XE - d / 2) / a);
+    t2 = Math.sqrt(2 * (XE + d / 2) / a);
+  }
+  return { a, t1, t2, dur: t2 - t1 };
+}
+function noiseFactor() {               // sai số ngẫu nhiên ±0,5% … ±1%
+  const m = 0.005 + Math.random() * 0.005;
+  return 1 + (Math.random() < 0.5 ? -m : m);
+}
+const roundMs = v => Math.round(v * 1000) / 1000;
+
+/* ============================================================
+   TIỆN ÍCH
+   ============================================================ */
+const $ = id => document.getElementById(id);
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  el.classList.remove('toast-in'); void el.offsetWidth; el.classList.add('toast-in');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.add('hidden'), 2600);
+}
+const f = (v, n) => Number(v).toFixed(n).replace('.', ',');   // định dạng số kiểu Việt Nam
+const fPlain = (v, n) => Number(v).toFixed(n);                // dùng cho đồng hồ LED
+
+/* ============================================================
+   ĐIỀU KHIỂN THÍ NGHIỆM
+   ============================================================ */
+function setControlsDisabled(dis) {
+  ['rngS', 'rngD', 'rngA'].forEach(id => $(id).disabled = dis);
+}
+function resetAll() {
+  st.phase = 'ready'; st.simT = 0; st.ballX = 0; st.run = null; st.measured = 0;
+  setControlsDisabled(false);
+  updateLed();
+}
+function release() {
+  if (st.phase !== 'ready') { toast('Bấm RESET (Về 0) để đưa bi về nam châm trước khi thả lần mới.'); return; }
+  const tm = timing(st.mode, st.s, st.d, st.alpha);
+  st.run = { ...tm, nf: noiseFactor(), mode: st.mode, s: st.s, d: st.d, recorded: false };
+  st.run.final = roundMs(tm.dur * st.run.nf);
+  st.phase = 'running'; st.simT = 0; st.measured = 0;
+  setControlsDisabled(true);
+  updateLed();
+}
+function setMode(m) {
+  if (st.mode === m) return;
+  st.mode = m;
+  resetAll();
+  refreshModeUI();
+  renderTable();
+}
+
+/* ============================================================
+   GHI SỐ LIỆU
+   ============================================================ */
+function recordRun() {
+  const r = st.run;
+  const arr = st.data[r.mode];
+  if (arr.length >= 3) { toast('Bảng đã đủ 3 lần đo. Bấm "Xóa số liệu" để đo lại.'); return; }
+  arr.push({ s: r.s, d: r.d, t: r.final });
+  renderTable();
+  toast('Đã ghi lần đo ' + arr.length + '/3 vào bảng ' + (r.mode === 'AB' ? '6.1' : '6.2'));
+}
+function autoMeasure() {
+  if (st.phase === 'running') { toast('Đang thả bi, hãy chờ kết thúc.'); return; }
+  const arr = [];
+  let last = 0;
+  for (let i = 0; i < 3; i++) {
+    const tm = timing(st.mode, st.s, st.d, st.alpha);
+    last = roundMs(tm.dur * noiseFactor());
+    arr.push({ s: st.s, d: st.d, t: last });
+  }
+  st.data[st.mode] = arr;
+  st.phase = 'ready'; st.simT = 0; st.ballX = 0; st.run = null; st.measured = last;
+  updateLed();
+  renderTable();
+  toast('Đã đo tự động 3 lần cho bảng ' + (st.mode === 'AB' ? '6.1' : '6.2'));
+}
+function clearTable() {
+  st.data[st.mode] = [];
+  renderTable();
+}
+function deleteRow(i) {
+  st.data[st.mode].splice(i, 1);
+  renderTable();
+}
+
+/* ============================================================
+   HIỂN THỊ BẢNG
+   ============================================================ */
+function renderTable() {
+  const m = st.mode, isAB = m === 'AB';
+  const arr = st.data[m];
+  const qk = isAB ? 's' : 'd';
+  const qDec = isAB ? 3 : 4;
+
+  $('tblTitle').textContent = isAB ? 'Bảng 6.1. Đo tốc độ trung bình của viên bi' : 'Bảng 6.2. Đo tốc độ tức thời của viên bi tại cổng E';
+  $('tblSub').textContent = isAB
+    ? 'MODE A+B: đo thời gian t viên bi chuyển động từ cổng E đến cổng F (3 lần đo).'
+    : 'MODE A: đo thời gian t viên bi chắn tia của cổng quang điện E (3 lần đo).';
+
+  $('tblHead').innerHTML = '<th class="py-2 px-2">Lần đo</th><th class="py-2 px-2"><i>' + (isAB ? 's' : 'd') + '</i> (m)</th><th class="py-2 px-2"><i>t</i> (s)</th><th></th>';
+
+  let rows = '';
+  for (let i = 0; i < 3; i++) {
+    const x = arr[i];
+    if (x) {
+      rows += `<tr class="text-emerald-300">
+        <td class="py-2 px-2 font-sans text-slate-300 text-sm">${i + 1}</td>
+        <td class="py-2 px-2">${f(x[qk], qDec)}</td>
+        <td class="py-2 px-2">${f(x.t, 3)}</td>
+        <td class="px-1"><button onclick="deleteRow(${i})" class="text-slate-600 hover:text-rose-400 text-xs" title="Xóa lần đo này"><i class="fa-solid fa-xmark"></i></button></td></tr>`;
+    } else {
+      rows += `<tr class="text-slate-600"><td class="py-2 px-2 font-sans text-sm">${i + 1}</td><td>—</td><td>—</td><td></td></tr>`;
+    }
+  }
+  $('tblBody').innerHTML = rows;
+  renderTheory();
+}
+function renderTheory() {
+  const box = $('theoryBox');
+  if (!$('chkTheory').checked) { box.classList.add('hidden'); return; }
+  const tm = timing(st.mode, st.s, st.d, st.alpha);
+  box.classList.remove('hidden');
+  if (st.mode === 'AB') {
+    box.innerHTML = `<i>a</i> = g·sinα = ${f(tm.a, 3)} m/s² · <i>t</i><sub>lý thuyết</sub> = ${f(tm.dur, 4)} s · <i>v</i><sub>tb</sub> = s/t = <b>${f(st.s / tm.dur, 3)} m/s</b>`;
+  } else {
+    const vE = Math.sqrt(2 * tm.a * XE);
+    box.innerHTML = `<i>a</i> = g·sinα = ${f(tm.a, 3)} m/s² · tốc độ tức thời tại E: <i>v</i><sub>E</sub> = √(2·a·x<sub>E</sub>) = <b>${f(vE, 3)} m/s</b> (so với d/t = ${f(st.d / tm.dur, 3)} m/s)`;
+  }
+}
+
+/* ============================================================
+   GIAO DIỆN CHẾ ĐỘ
+   ============================================================ */
+function refreshModeUI() {
+  const on = 'bg-indigo-500 text-white shadow', off = 'text-slate-300 hover:bg-slate-700';
+  const isAB = st.mode === 'AB';
+  $('hdrTabAB').className = 'px-3 py-1.5 rounded-md text-xs sm:text-sm font-semibold transition ' + (isAB ? on : off);
+  $('hdrTabA').className  = 'px-3 py-1.5 rounded-md text-xs sm:text-sm font-semibold transition ' + (!isAB ? on : off);
+  const tOn = 'bg-indigo-500/20 text-indigo-200 border border-indigo-400/50', tOff = 'text-slate-400 border border-transparent hover:bg-slate-800';
+  $('tabAB').className = 'rounded-lg px-3 py-2 text-sm font-semibold transition ' + (isAB ? tOn : tOff);
+  $('tabA').className  = 'rounded-lg px-3 py-2 text-sm font-semibold transition ' + (!isAB ? tOn : tOff);
+  const dOn = 'bg-emerald-500 text-slate-900 font-bold', dOff = 'bg-slate-800 text-slate-400';
+  $('devModeAB').className = 'px-2.5 py-1 ' + (isAB ? dOn : dOff);
+  $('devModeA').className  = 'px-2.5 py-1 ' + (!isAB ? dOn : dOff);
+  $('ledMode').textContent = isAB ? 'MODE A+B' : 'MODE A';
+}
+
+/* ============================================================
+   ĐỒNG HỒ LED
+   ============================================================ */
+let lastLed = '';
+function currentTimerValue() {
+  if (st.phase === 'ready') return st.measured;
+  const r = st.run;
+  if (st.simT < r.t1) return 0;
+  if (st.simT < r.t2) return Math.floor((st.simT - r.t1) * r.nf * 1000) / 1000;
+  return r.final;
+}
+function updateLed() {
+  const v = currentTimerValue();
+  const txt = fPlain(v, 3);
+  if (txt !== lastLed) { $('ledValue').textContent = txt; lastLed = txt; }
+  let stt = 'SẴN SÀNG';
+  if (st.phase === 'running') stt = (st.simT >= st.run.t1 && st.simT < st.run.t2) ? 'ĐANG ĐO…' : 'ĐANG LĂN';
+  if (st.phase === 'done') stt = 'ĐÃ DỪNG';
+  if (st.phase === 'ready' && st.measured > 0) stt = 'ĐÃ DỪNG';
+  $('ledState').textContent = stt;
+  const rel = $('btnRelease');
+  rel.disabled = st.phase !== 'ready' || st.measured > 0;
+}
+
+/* ============================================================
+   VÒNG LẶP MÔ PHỎNG
+   ============================================================ */
+let lastTs = 0;
+function step(ts) {
+  const dt = Math.min(0.05, (ts - lastTs) / 1000 || 0);
+  lastTs = ts;
+  if (st.phase === 'running') {
+    const r = st.run;
+    st.simT += dt * st.speed;
+    const x = 0.5 * r.a * st.simT * st.simT;
+    st.ballX = Math.min(L, x);
+    if (!r.recorded && st.simT >= r.t2) {
+      r.recorded = true;
+      st.measured = r.final;
+      recordRun();
+    }
+    if (x >= L) { st.phase = 'done'; st.ballX = L; setControlsDisabled(false); }
+    updateLed();
+  }
+  draw();
+  requestAnimationFrame(step);
+}
+
+/* ============================================================
+   CANVAS
+   ============================================================ */
+const canvas = $('sim');
+const ctx = canvas.getContext('2d');
+let cw = 800, ch = 400;
+function resizeCanvas() {
+  const w = $('canvasWrap').clientWidth || 800;
+  const h = Math.max(320, Math.min(460, Math.round(w * 0.5)));
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cw = w; ch = h;
+}
+new ResizeObserver(resizeCanvas).observe($('canvasWrap'));
+
+function draw() {
+  const W = cw, H = ch;
+  ctx.clearRect(0, 0, W, H);
+
+  // nền
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0f172a'); bg.addColorStop(1, '#020617');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(148,163,184,0.05)'; ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  const al = st.alpha * Math.PI / 180, c = Math.cos(al), s = Math.sin(al);
+  const px = Math.min(700, (W - 140) / (L * c), (H - 165) / (L * s));   // pixel / mét
+  const trackW = L * c * px, trackH = L * s * px;
+  const groundY = H - 36;
+  const x0 = (W - trackW) / 2 + 12;
+  const yEnd = groundY - 34;
+  const y0 = yEnd - trackH;
+  const rv = Math.max(5, st.d / 2 * px * 1.8);               // bán kính vẽ (phóng to)
+  const upx = s, upy = -c;                                    // vector pháp tuyến hướng lên
+  const pt = (u, h) => ({ x: x0 + u * c + h * upx, y: y0 + u * s + h * upy });
+  const quad = (u1, u2, h1, h2, fill, stroke, lw) => {
+    const a = pt(u1, h1), b = pt(u2, h1), d = pt(u2, h2), e = pt(u1, h2);
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(d.x, d.y); ctx.lineTo(e.x, e.y); ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+  };
+
+  // mặt bàn
+  ctx.fillStyle = '#1e293b'; ctx.fillRect(0, groundY, W, H - groundY);
+  ctx.strokeStyle = '#475569'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(W, groundY); ctx.stroke();
+
+  const uStart = -(rv + 26), uEnd = L * px + rv + 12;
+
+  // chân đỡ
+  const legTop = pt(uStart + 12, -9);
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(legTop.x, legTop.y); ctx.lineTo(legTop.x, groundY); ctx.stroke();
+  const legEnd = pt(L * px, -9);
+  ctx.beginPath(); ctx.moveTo(legEnd.x, legEnd.y); ctx.lineTo(legEnd.x, groundY); ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // máng
+  quad(uStart, uEnd, -9, 0, '#475569', null);
+  ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2;
+  let a = pt(uStart, 0), b = pt(uEnd, 0);
+  ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  // vạch chia mỗi 0,1 m
+  ctx.strokeStyle = 'rgba(226,232,240,.55)'; ctx.lineWidth = 1;
+  for (let k = 0; k <= 12; k++) {
+    const p1 = pt(k * 0.1 * px, -1), p2 = pt(k * 0.1 * px, k % 2 === 0 ? -8 : -5);
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+  }
+  // chốt chặn cuối máng
+  quad(L * px + rv + 2, L * px + rv + 12, -9, 2 * rv + 6, '#64748b', '#94a3b8', 1);
+
+  // nam châm
+  const magOn = st.phase === 'ready';
+  ctx.save();
+  if (magOn) { ctx.shadowColor = '#f59e0b'; ctx.shadowBlur = 18; }
+  quad(-(rv + 26), -rv, 0, 2 * rv + 8, magOn ? '#f59e0b' : '#475569', magOn ? '#fde68a' : '#64748b', 1.5);
+  ctx.restore();
+  ctx.strokeStyle = magOn ? 'rgba(120,53,15,.7)' : 'rgba(15,23,42,.7)'; ctx.lineWidth = 1.5;
+  for (let k = 1; k <= 3; k++) {
+    const u = -(rv + 26) + k * (26 / 4);
+    const p1 = pt(u, 2), p2 = pt(u, 2 * rv + 6);
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+  }
+  const ml = pt(-(rv + 13), 2 * rv + 24);
+  ctx.fillStyle = magOn ? '#fbbf24' : '#94a3b8'; ctx.font = '600 12px Inter, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Nam châm', ml.x, ml.y);
+
+  // cổng quang điện
+  const mode = st.mode;
+  const ballCenterU = st.ballX * px;
+  function gate(xm, label, color, dim, blocked) {
+    const u = xm * px;
+    ctx.save();
+    ctx.globalAlpha = dim ? 0.3 : 1;
+    quad(u - 5, u + 5, -16, 2 * rv + 16, 'rgba(30,41,59,.85)', color, 2);
+    const base = pt(u, -16);
+    ctx.strokeStyle = color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(base.x, groundY); ctx.stroke();
+    const bm = pt(u, rv);
+    ctx.save();
+    if (blocked) { ctx.shadowColor = '#fff'; ctx.shadowBlur = 14; }
+    ctx.fillStyle = blocked ? '#ffffff' : '#ef4444';
+    ctx.beginPath(); ctx.arc(bm.x, bm.y, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    const lp = pt(u, 2 * rv + 32);
+    ctx.fillStyle = color; ctx.font = 'bold 16px Inter, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(label, lp.x, lp.y);
+    ctx.restore();
+  }
+  const dHalf = st.d / 2 * px;
+  const eBlocked = Math.abs(st.ballX * px - XE * px) < dHalf;
+  const fBlocked = Math.abs(st.ballX * px - (XE + st.s) * px) < dHalf;
+  gate(XE, 'E', '#818cf8', false, eBlocked);
+  gate(XE + st.s, 'F', '#34d399', mode === 'A', fBlocked && mode === 'AB');
+
+  // đường kích thước s
+  if (mode === 'AB') {
+    const hh = -34;
+    const p1 = pt(XE * px, hh), p2 = pt((XE + st.s) * px, hh);
+    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); ctx.setLineDash([]);
+    [XE, XE + st.s].forEach(xm => {
+      const q1 = pt(xm * px, hh + 6), q2 = pt(xm * px, hh - 6);
+      ctx.beginPath(); ctx.moveTo(q1.x, q1.y); ctx.lineTo(q2.x, q2.y); ctx.stroke();
+    });
+    ctx.save();
+    ctx.translate((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+    ctx.rotate(al);
+    ctx.fillStyle = '#fbbf24'; ctx.font = '600 13px Inter, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('s = ' + f(st.s, 3) + ' m', 0, 18);
+    ctx.restore();
+  }
+
+  // cung góc α
+  const C = pt(L * px, 0);
+  ctx.strokeStyle = 'rgba(148,163,184,.6)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(C.x, C.y); ctx.lineTo(C.x - 120, C.y); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = '#a5b4fc'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(C.x, C.y, 62, Math.PI, Math.PI + al, false); ctx.stroke();
+  ctx.fillStyle = '#a5b4fc'; ctx.font = '600 13px Inter, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('α = ' + st.alpha + '°', C.x + 88 * Math.cos(Math.PI + al / 2) - 4, C.y + 88 * Math.sin(Math.PI + al / 2) + 14);
+
+  // viên bi
+  const bc = pt(ballCenterU, rv);
+  const rot = (ballCenterU) / rv;
+  ctx.save();
+  ctx.translate(bc.x, bc.y);
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+  const grad = ctx.createRadialGradient(-rv * 0.35, -rv * 0.35, rv * 0.1, 0, 0, rv);
+  grad.addColorStop(0, '#f8fafc'); grad.addColorStop(0.45, '#94a3b8'); grad.addColorStop(1, '#334155');
+  ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, rv, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.rotate(rot);
+  ctx.strokeStyle = 'rgba(15,23,42,.65)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(rv * 0.85, 0); ctx.stroke();
+  ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(rv * 0.6, 0, Math.max(1.5, rv * 0.14), 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // thông tin góc trên
+  ctx.textAlign = 'left'; ctx.font = '12px "Share Tech Mono", monospace';
+  ctx.fillStyle = '#34d399';
+  ctx.fillText(mode === 'AB' ? 'MODE A+B · đo thời gian bi đi từ E đến F' : 'MODE A · đo thời gian bi chắn tia ở cổng E', 12, 20);
+  ctx.fillStyle = '#94a3b8';
+  const aVal = G * Math.sin(al);
+  ctx.fillText('a = g·sinα = ' + f(aVal, 3) + ' m/s²', 12, 38);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = magOn ? '#fbbf24' : '#64748b';
+  ctx.fillText('Điện nam châm: ' + (magOn ? 'BẬT' : 'TẮT'), W - 12, 20);
+  ctx.fillStyle = '#94a3b8';
+  if (st.phase !== 'ready') ctx.fillText('v tức thời ≈ ' + f(aVal * st.simT, 3) + ' m/s', W - 12, 38);
+  ctx.textAlign = 'left';
+}
+
+/* ============================================================
+   SAO CHÉP BÁO CÁO
+   ============================================================ */
+function tableText(mode) {
+  const arr = st.data[mode];
+  if (!arr.length) return '';
+  const isAB = mode === 'AB', qk = isAB ? 's' : 'd';
+  const qDec = isAB ? 3 : 4, qn = isAB ? 's (m)' : 'd (m)';
+  let t = isAB ? 'BẢNG 6.1. ĐO TỐC ĐỘ TRUNG BÌNH (MODE A+B)\n' : 'BẢNG 6.2. ĐO TỐC ĐỘ TỨC THỜI (MODE A)\n';
+  t += 'Lần đo | ' + qn + ' | t (s)\n';
+  arr.forEach((x, i) => { t += `${i + 1} | ${f(x[qk], qDec)} | ${f(x.t, 3)}\n`; });
+  return t;
+}
+function reportText() {
+  let t = 'BÁO CÁO THỰC HÀNH – VẬT LÍ 10\nBài 6. Thực hành đo tốc độ của vật chuyển động\n';
+  t += `Góc nghiêng α = ${st.alpha}°\n\n`;
+  const t1 = tableText('AB'), t2 = tableText('A');
+  if (!t1 && !t2) return '';
+  if (t1) t += t1 + '\n';
+  if (t2) t += t2;
+  return t.trim() + '\n';
+}
+async function copyReport() {
+  const txt = reportText();
+  if (!txt) { toast('Chưa có số liệu để sao chép. Hãy đo trước.'); return; }
+  try {
+    await navigator.clipboard.writeText(txt);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    document.body.removeChild(ta);
+  }
+  toast('Đã sao chép báo cáo vào bộ nhớ tạm.');
+}
+
+/* ============================================================
+   MODAL HƯỚNG DẪN
+   ============================================================ */
+const GUIDE = {
+  AB: `
+    <div class="rounded-lg bg-indigo-500/10 border border-indigo-400/30 p-3"><b class="text-indigo-300">Mục đích:</b> đo tốc độ trung bình của viên bi trên quãng đường <i>s</i> giữa hai cổng quang điện E và F.</div>
+    <h3 class="font-semibold text-white">Các bước thực hiện</h3>
+    <ol class="list-decimal pl-5 space-y-1.5">
+      <li>Chọn <b>Bảng 6.1</b> (đồng hồ ở <span class="led-font text-emerald-300">MODE A+B</span>). Điều chỉnh góc nghiêng <i>α</i> (khoảng 10°–20°).</li>
+      <li>Đặt cổng E gần nam châm, cổng F cách E một đoạn <i>s</i> (kéo thanh trượt <i>s</i>, ví dụ 0,400 m). Giữ nguyên <i>s</i> trong cả 3 lần đo.</li>
+      <li>Bấm <b>RESET (Về 0)</b>: viên bi được nam châm giữ ở đầu máng, đồng hồ về 0,000 s.</li>
+      <li>Bấm <b>Thả Bi (Ngắt Điện Nam Châm)</b>: bi lăn xuống; đồng hồ bắt đầu đếm khi bi qua E và dừng khi bi qua F. Số chỉ là thời gian <i>t</i>.</li>
+      <li>Kết quả tự động ghi vào bảng. Bấm RESET rồi lặp lại cho đủ 3 lần (hoặc dùng <b>Đo Tự Động 3 Lần</b>).</li>
+    </ol>
+    <h3 class="font-semibold text-white">Xử lý số liệu <span class="text-xs font-normal text-slate-400">(học sinh tự tính trong báo cáo)</span></h3>
+    <ul class="list-disc pl-5 space-y-1">
+      <li>Thời gian trung bình <span class="ov"><i>t</i></span> = (t₁ + t₂ + t₃)/3; sai số <i>Δt</i> = <span class="ov">Δ<i>t</i></span> + Δt<sub>dc</sub> (Δt<sub>dc</sub> = 0,001 s).</li>
+      <li>Tốc độ trung bình <span class="ov"><i>v</i></span> = <span class="ov"><i>s</i></span>/<span class="ov"><i>t</i></span>.</li>
+      <li>Sai số: Δ<i>v</i> = <span class="ov"><i>v</i></span>·(Δ<i>s</i>/<span class="ov"><i>s</i></span> + Δ<i>t</i>/<span class="ov"><i>t</i></span>), với Δs<sub>dc</sub> = 0,001 m.</li>
+      <li>Viết kết quả: <i>v</i> = <span class="ov"><i>v</i></span> ± Δ<i>v</i>.</li>
+    </ul>`,
+  A: `
+    <div class="rounded-lg bg-emerald-500/10 border border-emerald-400/30 p-3"><b class="text-emerald-300">Mục đích:</b> đo tốc độ tức thời của viên bi tại vị trí cổng E bằng cách đo thời gian bi chắn tia sáng.</div>
+    <h3 class="font-semibold text-white">Các bước thực hiện</h3>
+    <ol class="list-decimal pl-5 space-y-1.5">
+      <li>Chọn <b>Bảng 6.2</b> (đồng hồ ở <span class="led-font text-emerald-300">MODE A</span>). Đặt góc nghiêng <i>α</i> và chọn đường kính viên bi <i>d</i> (đo bằng thước kẹp, Δd<sub>dc</sub> = 0,00005 m).</li>
+      <li>Giữ nguyên vị trí cổng E. Bấm <b>RESET (Về 0)</b> để đưa bi về nam châm.</li>
+      <li>Bấm <b>Thả Bi</b>: đồng hồ chỉ đếm trong khoảng thời gian <i>t</i> viên bi chắn tia sáng của cổng E.</li>
+      <li>Lặp lại 3 lần, ghi các giá trị <i>t</i> vào Bảng 6.2.</li>
+    </ol>
+    <h3 class="font-semibold text-white">Xử lý số liệu <span class="text-xs font-normal text-slate-400">(học sinh tự tính trong báo cáo)</span></h3>
+    <ul class="list-disc pl-5 space-y-1">
+      <li>Tính <span class="ov"><i>t</i></span> và Δ<i>t</i> = <span class="ov">Δ<i>t</i></span> + 0,001 s.</li>
+      <li>Tốc độ tức thời: <i>v</i><sub>t</sub> = <span class="ov"><i>d</i></span>/<span class="ov"><i>t</i></span> (vì thời gian chắn tia rất ngắn nên <i>d/t</i> xấp xỉ tốc độ tại E).</li>
+      <li>Sai số: Δ<i>v</i><sub>t</sub> = <span class="ov"><i>v</i></span><sub>t</sub>·(Δ<i>d</i>/<span class="ov"><i>d</i></span> + Δ<i>t</i>/<span class="ov"><i>t</i></span>).</li>
+      <li>Viết kết quả: <i>v</i><sub>t</sub> = <span class="ov"><i>v</i></span><sub>t</sub> ± Δ<i>v</i><sub>t</sub>.</li>
+    </ul>`
+};
+function guideTab(k) {
+  st.guide = k;
+  $('guideBody').innerHTML = GUIDE[k];
+  const on = 'bg-indigo-500 text-white', off = 'text-slate-300 hover:bg-slate-700';
+  $('gTabAB').className = 'px-3 py-1.5 rounded-md font-semibold ' + (k === 'AB' ? on : off);
+  $('gTabA').className  = 'px-3 py-1.5 rounded-md font-semibold ' + (k === 'A' ? on : off);
+}
+function openGuide() { guideTab(st.mode); const m = $('modal'); m.classList.remove('hidden'); m.classList.add('flex'); }
+function closeGuide() { const m = $('modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeGuide(); });
+
+/* ============================================================
+   KHỞI TẠO SỰ KIỆN
+   ============================================================ */
+function onSlider() {
+  st.s = parseFloat($('rngS').value);
+  st.d = parseFloat($('rngD').value);
+  st.alpha = parseInt($('rngA').value, 10);
+  $('valS').textContent = f(st.s, 3) + ' m';
+  $('valD').textContent = f(st.d, 4) + ' m';
+  $('valA').textContent = st.alpha + '°';
+  if (st.phase !== 'running') { st.phase = 'ready'; st.simT = 0; st.ballX = 0; st.run = null; st.measured = 0; updateLed(); }
+  renderTheory();
+}
+['rngS', 'rngD', 'rngA'].forEach(id => $(id).addEventListener('input', onSlider));
+$('selSpeed').addEventListener('change', e => { st.speed = parseFloat(e.target.value); });
+$('chkTheory').addEventListener('change', renderTheory);
+
+resizeCanvas();
+onSlider();
+refreshModeUI();
+renderTable();
+updateLed();
+requestAnimationFrame(ts => { lastTs = ts; step(ts); });
+</script>
+</body>
+</html>
